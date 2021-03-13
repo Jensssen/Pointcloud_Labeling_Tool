@@ -28,6 +28,24 @@ Run "npm start dev" in order to start the Node Express Server.
 
 Open you browser and enter ```localhost:3000```
 
+# Shortcuts
+
+| Shortcut        | Effekt           |
+| ------------- |:-------------:|
+| s             | set currently selected points to selected label |
+| 1             | select class "not labeled"                      |
+| 2             | select class "background"                       |
+| 3             | select class "car"                              |
+| 4             | select class "road"                             |
+| q             | change visibility of class "not labeled"        |
+| w             | change visibility of class "background"         |
+| e             | change visibility of class "car"                |
+| r             | change visibility of class "road"               |
+| v             | rotate point cloud around Z  (negative)         |    
+| c             | rotate point cloud around Z  (positive)         |
+| +             | Increase intensity filter threshold             |
+| -             | Decrease intensity filter threshold             |
+
 # Troubleshooting
 After you run the server, you should get a success message in your console.
 ```
