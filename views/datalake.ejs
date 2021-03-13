@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta http-equiv="X-UA-Compatible" content="ie=edge" />
+    <title>Point Cloud Labeling</title>
+    <link
+      rel="stylesheet"
+      href="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0/css/bootstrap.min.css"
+      integrity="sha384-Gn5384xqQ1aoWXA+058RXPxPg6fy4IWvTNh0E263XmFcJlSAwiGgFAW/dAiS6JXm"
+      crossorigin="anonymous"
+    />
+    <link ref="stylesheet" href="main.css" />
+  </head>
+
+  <body>
+    <nav class="navbar navbar-expand-sm navbar-dark bg-dark">
+      <a href="/" class="navbar-brand">Landing Page</a>
+      <div class="collapse navbar-collapse">
+        <ul class="navbar-nav">
+          <li class="nav-item">
+            <a
+              target="_blank"
+              rel="noopener noreferrer"
+              href="http://192.168.17.225:9000/minio/ad-students/"
+              class="nav-link"
+              >MinIo Datalake</a
+            >
+          </li>
+          <li class="nav-item">
+            <a
+              target="_blank"
+              rel="noopener noreferrer"
+              href="http://192.168.23.60:9286/home.html"
+              class="nav-link"
+              >Cluster</a
+            >
+          </li>
+          <li class="nav-item">
+            <a href="datalake_data" class="nav-link"
+              >Point Cloud Labeling Tool</a
+            >
+          </li>
+        </ul>
+      </div>
+    </nav>
+
+    <table class="table table-dark table-hover">
+      <tr class="bg-info">
+        <th>Name</th>
+        <th>Size</th>
+        <th>Lastmodified</th>
+      </tr>
+      <tbody id="datalake_table"></tbody>
+    </table>
+
+    <div class="container-fluid">
+      <div class="row">
+        <div class="col-sm-6" style="background-color: white">
+          <h2 class="sub-header">NOT LABELED</h2>
+          <table class="table table-striped">
+            <thead>
+              <tr>
+                <th class="col-md-1">Name</th>
+                <th class="col-md-2">Size</th>
+                <th class="col-md-3">Lastmodified</th>
+              </tr>
+            </thead>
+            <tbody id="datalake_table_not_labeled"></tbody>
+          </table>
+        </div>
+        <div class="col-sm-6" style="background-color: white">
+          <h2 class="sub-header">LABELED</h2>
+          <table class="table table-striped">
+            <thead>
+              <tr>
+                <th class="col-md-1">Name</th>
+                <th class="col-md-2">Size</th>
+                <th class="col-md-3">Lastmodified</th>
+              </tr>
+            </thead>
+            <tbody id="datalake_table_labeled"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </body>
+
+  <script>
+    var table_data_not_labeled =  <%- JSON.stringify(table_data_not_labeled) %>;
+    var table_data_labeled =  <%- JSON.stringify(table_data_labeled) %>;
+
+    buildTable("datalake_table_not_labeled", table_data_not_labeled);
+    buildTable("datalake_table_labeled", table_data_labeled);
+
+    function open_point_cloud_editor() {
+        var xhr = new XMLHttpRequest();
+        xhr.onreadystatechange = function () {
+            if (xhr.readyState === 4) {
+                alert(xhr.response);
+            }
+        }
+        xhr.open('get', 'http://localhost:3000/get_datalake_data', true);
+        xhr.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded; charset=UTF-8');
+        xhr.send();
+    }
+
+    function buildTable(table_id, datalake_data) {
+        const table = document.getElementById(table_id);
+        let dataHtml = "";
+        table.innerHTML = "";
+        for (let data of datalake_data) {
+            let file_name = data["Key"].replace("/", "");
+            dataHtml += `<tr>
+                         <td><button onclick="window.location.href='http://localhost:3000/labeling_tool/${file_name}';" class="btn btn-primary">${data["Key"]}</button></td>
+                         <td>${data.size/1000} kb</td>
+                         <td>${data.lastModified}</td>
+                         </tr>`
+
+        }
+        table.innerHTML += dataHtml;
+    }
+  </script>
+</html>

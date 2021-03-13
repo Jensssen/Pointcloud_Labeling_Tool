@@ -1,0 +1,628 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <title>three.js webgl - geometry - cube</title>
+    <meta charset="utf-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0"
+    />
+    <link type="text/css" rel="stylesheet" href="../stylesheets/threejs.css" />
+    <style>
+      .selectBox {
+        border: 1px solid #55aaff;
+        background-color: rgba(75, 160, 255, 0.3);
+        position: fixed;
+      }
+      img.sticky {
+        position: sticky;
+        top: 0;
+        width: 400px;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="info">
+      <button id="color">Save</button>
+    </div>
+
+    <script type="module">
+
+
+		import * as THREE from "/threejs/build/three.module.js";
+		import { OrbitControls } from "/threejs/jsm/controls/OrbitControls.js";
+		//import { TrackballControls } from '/threejs/jsm/controls/TrackballControls.js';
+		import Stats from "/threejs/jsm/libs/stats.module.js";
+		import { SelectionBox } from "/threejs/jsm/interactive/SelectionBox.js";
+		import { SelectionHelper } from "/threejs/jsm/interactive/SelectionHelper.js";
+		import { GUI } from "/threejs/jsm/libs/dat.gui.module.js";
+
+		var point_cloud_x = [<%= point_cloud_data.x %>];
+		var point_cloud_y = [<%= point_cloud_data.y %>];
+		var point_cloud_z = [<%= point_cloud_data.z %>];
+		var point_cloud_i = [<%= point_cloud_data.i %>];
+		var point_cloud_l = [<%= point_cloud_data.l %>];
+		var point_cloud_file_name = <%- JSON.stringify(point_cloud_path) %>;
+
+		const gui = new GUI();
+		let camera, scene, controls, renderer, stats, mesh, container;
+
+		var point_cloud_json = {
+		width: 128,
+		height: 100,
+		x: point_cloud_x,
+		y: point_cloud_y,
+		z: point_cloud_z,
+		i: point_cloud_i,
+		l: point_cloud_l,
+		};
+
+		console.log(point_cloud_file_name);
+
+		var initial_camera_pose = "n";
+		var orbitcontrol_on = true;
+		var angle = 90;
+		var point_cloud;
+		var initial_middle_mouse_click_x = 0;
+		var distance_to_middle_mouse_click_x = 0;
+		const intensity_filter_min = 0;
+		const intensity_filter_max = 500;
+		var camera_positions = {
+		top: [0, 0, -500],
+		side: [-500, 0, 0],
+		rear: [0, -500, 0],
+		};
+		var keyboard_shortcuts = {
+			v: 86,
+			c: 67,
+		};
+
+		var sellected_class_label = -1;
+		var class_label_list = {
+			background: 0,
+			car: 1,
+			road: 2,
+		};
+
+		const menu_params = {
+		Labels: {
+			not_labeled: true,
+			background: false,
+			car: false,
+			road: false,
+		},
+		Visibility: {
+			not_labeled: true,
+			background: true,
+			car: true,
+			road: true,
+		},
+		intensity_filter: {
+			threshold: 0,
+		},
+		};
+
+		init();
+		animate();
+
+		function init() {
+		// ##### Container ####
+		container = document.createElement("div");
+		document.body.appendChild(container);
+
+		// ##### SCENE #####
+		scene = new THREE.Scene();
+		scene.background = new THREE.Color(0x000000);
+		scene.add(new THREE.AmbientLight(0x505050));
+		// ##### Light #####
+		const light = new THREE.AmbientLight(0x808080); // soft white light
+		scene.add(light);
+
+		// ##### CAMERA #####
+		//camera = new THREE.OrthographicCamera( window.innerWidth / - 2, window.innerWidth / 2, window.innerHeight / 2, window.innerHeight / - 2, 1, 5000 );
+		camera = new THREE.PerspectiveCamera(
+			70,
+			window.innerWidth / window.innerHeight,
+			1,
+			5000
+		);
+
+		camera.position.set(
+			camera_positions["top"][0],
+			camera_positions["top"][1],
+			camera_positions["top"][2]
+		);
+
+		camera.lookAt(new THREE.Vector3(0, 0, 0)); // Set look at coordinate like this
+		camera.rotation.set(
+			THREE.Math.degToRad(-180),
+			THREE.Math.degToRad(0),
+			THREE.Math.degToRad(270)
+		);
+
+		const geometry = new THREE.BoxBufferGeometry(1, 1, 1);
+
+		point_cloud = new THREE.Group();
+
+		for (let i = 0; i < point_cloud_x.length; i++) {
+			let label_color = 0xff0000;
+			var label_id = 0;
+			// sellect point color
+			switch (point_cloud_l[i]) {
+			case 0:
+				label_color = 0xff0000;
+				label_id = 0;
+				break;
+			case 1:
+				label_color = 0x00ff00;
+				label_id = 1;
+				break;
+			case 2:
+				label_color = 0x0000ff;
+				label_id = 2;
+				break;
+			default:
+				label_color = 0xff0000;
+				label_id = 0;
+			}
+
+			const point = new THREE.Mesh(
+			geometry,
+			new THREE.MeshLambertMaterial({ color: label_color })
+			);
+			point.position.x = point_cloud_x[i] * 10;
+			point.position.y = point_cloud_y[i] * 10;
+			point.position.z = point_cloud_z[i] * 10;
+			point.userData = {
+			final_point_label: label_id,
+			point_is_selected: 0,
+			};
+			point_cloud.add(point);
+		}
+
+		scene.add(point_cloud);
+		renderer = new THREE.WebGLRenderer({ antialias: true });
+		renderer.setPixelRatio(window.devicePixelRatio);
+		renderer.setSize(window.innerWidth, window.innerHeight);
+
+		renderer.shadowMap.enabled = true;
+		renderer.shadowMap.type = THREE.PCFShadowMap;
+
+		document.body.appendChild(renderer.domElement);
+
+		// controls
+		controls = new OrbitControls(camera, renderer.domElement);
+		//controls = new TrackballControls(camera, renderer.domElement);
+
+		// GUI setup
+		const class_labels = gui.addFolder("Labels");
+		class_labels
+			.add(menu_params.Labels, "not_labeled")
+			.name("Not Labeled (0)")
+			.onChange(function change_point_label() {
+			sellected_class_label = -1;
+			menu_params.Labels.not_labeled = true;
+			menu_params.Labels.background = false;
+			menu_params.Labels.car = false;
+			menu_params.Labels.road = false;
+			gui.updateDisplay();
+			});
+		class_labels
+			.add(menu_params.Labels, "background")
+			.name("Background (0)")
+			.onChange(function change_point_label() {
+			sellected_class_label = 0;
+			menu_params.Labels.not_labeled = false;
+			menu_params.Labels.background = true;
+			menu_params.Labels.car = false;
+			menu_params.Labels.road = false;
+			gui.updateDisplay();
+			});
+		class_labels
+			.add(menu_params.Labels, "car")
+			.name("Car (1)")
+			.onChange(function change_point_label() {
+			sellected_class_label = 1;
+			menu_params.Labels.not_labeled = false;
+			menu_params.Labels.background = false;
+			menu_params.Labels.car = true;
+			menu_params.Labels.road = false;
+			gui.updateDisplay();
+			});
+		class_labels
+			.add(menu_params.Labels, "road")
+			.name("Road (2)")
+			.onChange(function change_point_label() {
+			sellected_class_label = 2;
+			menu_params.Labels.not_labeled = false;
+			menu_params.Labels.background = false;
+			menu_params.Labels.car = false;
+			menu_params.Labels.road = true;
+			gui.updateDisplay();
+			});
+		class_labels.open();
+
+		const point_visibility = gui.addFolder("Visibility");
+		// Change visibility of background points
+		point_visibility
+			.add(menu_params.Visibility, "not_labeled")
+			.name("Not Labeled")
+			.onChange(change_point_visibility);
+		// Change visibility of background points
+		point_visibility
+			.add(menu_params.Visibility, "background")
+			.name("Background")
+			.onChange(change_point_visibility);
+		// Change visibility of car points
+		point_visibility
+			.add(menu_params.Visibility, "car")
+			.name("Car")
+			.onChange(change_point_visibility);
+		// Change visibility of road points
+		point_visibility
+			.add(menu_params.Visibility, "road")
+			.name("Road")
+			.onChange(change_point_visibility);
+		point_visibility.open();
+
+		const intensity_filter = gui.addFolder("Intensity Filter");
+		intensity_filter
+			.add(
+			menu_params.intensity_filter,
+			"threshold",
+			intensity_filter_min,
+			intensity_filter_max,
+			1
+			)
+			.onChange(change_point_visibility);
+		intensity_filter.open();
+
+		// ##### Stats #####
+		container.appendChild(renderer.domElement);
+		stats = new Stats();
+		container.appendChild(stats.dom);
+		window.addEventListener("resize", onWindowResize, false);
+		}
+
+		function onWindowResize() {
+		camera.aspect = window.innerWidth / window.innerHeight;
+		camera.updateProjectionMatrix();
+		renderer.setSize(window.innerWidth, window.innerHeight);
+		}
+
+		function animate() {
+		requestAnimationFrame(animate);
+		controls.update(); // only required if controls.enableDamping = true, or if controls.autoRotate = true
+		render();
+		stats.update();
+		}
+
+		function render() {
+		renderer.render(scene, camera);
+		}
+
+		const selectionBox = new SelectionBox(camera, scene);
+		const helper = new SelectionHelper(selectionBox, renderer, "selectBox");
+
+		function upload_point_cloud_to_datalake() {
+		var request = new XMLHttpRequest();
+
+		request.open(
+			"POST",
+			"http://localhost:3000/upload_point_cloud/" + point_cloud_file_name,
+			true
+		);
+
+		request.setRequestHeader("Content-Type", "application/json");
+
+		var data_json = { l: point_cloud_l };
+		var data = JSON.stringify(data_json);
+
+		request.send(data);
+		}
+
+		//Set change visibility by point label
+		function change_point_visibility() {
+		// loop over all points
+		for (var i = 0; i < point_cloud.children.length; i++) {
+			// Change visibility depending on checkboxes only if intensity is >= Threshold
+			if (!menu_params.Visibility.not_labeled) {
+				if (point_cloud.children[i].userData.final_point_label == -1) {
+					point_cloud.children[i].visible = menu_params.Visibility.not_labeled;
+				}
+			} else {
+				if (point_cloud.children[i].userData.final_point_label == -1) {
+					point_cloud.children[i].visible = menu_params.Visibility.not_labeled;
+				}
+				if (point_cloud_i[i] <= menu_params.intensity_filter.threshold) {
+					point_cloud.children[i].visible = false;
+				}
+			}
+			if (!menu_params.Visibility.background) {
+				if (point_cloud.children[i].userData.final_point_label == 0) {
+					point_cloud.children[i].visible = menu_params.Visibility.background;
+				}
+			} else {
+				if (point_cloud.children[i].userData.final_point_label == 0) {
+					point_cloud.children[i].visible = menu_params.Visibility.background;
+				}
+				if (point_cloud_i[i] <= menu_params.intensity_filter.threshold) {
+					point_cloud.children[i].visible = false;
+				}
+			}
+			if (!menu_params.Visibility.car) {
+				if (point_cloud.children[i].userData.final_point_label == 1) {
+					point_cloud.children[i].visible = menu_params.Visibility.car;
+				}
+			} else {
+				if (point_cloud.children[i].userData.final_point_label == 1) {
+					point_cloud.children[i].visible = menu_params.Visibility.car;
+				}
+			if (point_cloud_i[i] <= menu_params.intensity_filter.threshold) {
+				point_cloud.children[i].visible = false;
+				}
+			}
+			if (!menu_params.Visibility.road) {
+				if (point_cloud.children[i].userData.final_point_label == 2) {
+					point_cloud.children[i].visible = menu_params.Visibility.road;
+				}
+			} else {
+				if (point_cloud.children[i].userData.final_point_label == 2) {
+					point_cloud.children[i].visible = menu_params.Visibility.road;
+				}
+				if (point_cloud_i[i] <= menu_params.intensity_filter.threshold) {
+					point_cloud.children[i].visible = false;
+				}
+			}
+		}
+		}
+
+		document.addEventListener("pointerdown", function (event) {
+		if (event.button == 2) {
+			for (const item of selectionBox.collection) {
+				item.material.emissive.set(0x000000);
+			}
+			selectionBox.startPoint.set(
+			(event.clientX / window.innerWidth) * 2 - 1,
+			-(event.clientY / window.innerHeight) * 2 + 1,
+			0.5
+			);
+		}
+		if (event.button == 1) {
+			initial_middle_mouse_click_x = event.clientX / window.innerWidth;
+		}
+		});
+
+		document.addEventListener("pointermove", function (event) {
+		//console.log(event);
+		if (event.button == 2) {
+			if (helper.isDown) {
+				for (let i = 0; i < selectionBox.collection.length; i++) {
+					selectionBox.collection[i].material.emissive.set(0x000000);
+				}
+				selectionBox.endPoint.set(
+					(event.clientX / window.innerWidth) * 2 - 1,
+					-(event.clientY / window.innerHeight) * 2 + 1,
+					0.5
+				);
+				const allSelected = selectionBox.select();
+
+				for (let i = 0; i < allSelected.length; i++) {
+					allSelected[i].material.emissive.set(0xffffff);
+				}
+			}
+		}
+		});
+
+		document.addEventListener("pointerup", function (event) {
+		if (event.button == 2) {
+			selectionBox.endPoint.set(
+			(event.clientX / window.innerWidth) * 2 - 1,
+			-(event.clientY / window.innerHeight) * 2 + 1,
+			0.5
+			);
+
+			// Set point_is_selected of all points to 0
+			for (let i = 0; i < point_cloud.children.length; i++) {
+			point_cloud.children[i].userData.point_is_selected = 0;
+			}
+			// Set point_is_selected of all points that have been sellected by user to 1
+			const allSelected = selectionBox.select();
+			for (let i = 0; i < allSelected.length; i++) {
+			allSelected[i].material.emissive.set(0xffffff);
+			allSelected[i].userData.point_is_selected = 1;
+			}
+		}
+		if (event.button == 1) {
+			distance_to_middle_mouse_click_x =
+			(initial_middle_mouse_click_x - event.clientX / window.innerWidth) * 80;
+			angle -= distance_to_middle_mouse_click_x;
+			console.log(angle);
+		}
+		});
+
+		// Keyboard events
+		document.addEventListener("keydown", function (event) {
+		console.log(event.which);
+		var keyCode = event.which;
+		// Rotate point cloud around z
+		if (keyCode == keyboard_shortcuts["v"]) {
+			angle -= 1;
+			point_cloud.rotation.z = THREE.Math.degToRad(angle);
+		} else if (keyCode == keyboard_shortcuts["c"]) {
+			angle += 1;
+			point_cloud.rotation.z = THREE.Math.degToRad(angle);
+		}
+		if (keyCode == 90) {
+			// User presses "z", point cloud is visualized from top down
+			if (initial_camera_pose == "n") {
+			point_cloud.rotation.z = THREE.Math.degToRad(90);
+			point_cloud.rotation.y = THREE.Math.degToRad(180);
+			}
+
+			if (initial_camera_pose == "y") {
+			point_cloud.rotation.x = THREE.Math.degToRad(180);
+			point_cloud.rotation.z = THREE.Math.degToRad(-90);
+			}
+
+			if (initial_camera_pose == "z") {
+			point_cloud.rotation.z = THREE.Math.degToRad(90);
+			point_cloud.rotation.y = THREE.Math.degToRad(180);
+
+			angle = 90;
+			}
+
+			camera.position.set(0, 0, -500);
+			camera.lookAt(0, 0, 0);
+			initial_camera_pose = "z";
+		}
+		// User presses "y", point cloud is visualized from the side
+		if (keyCode == 89) {
+			if (initial_camera_pose == "n") {
+				point_cloud.rotation.x = THREE.Math.degToRad(-90);
+				point_cloud.rotation.z = THREE.Math.degToRad(180);
+			}
+
+			if (initial_camera_pose == "z") {
+				point_cloud.rotation.x = THREE.Math.degToRad(90);
+				point_cloud.rotation.z = THREE.Math.degToRad(0);
+			}
+
+			if (initial_camera_pose == "y") {
+				point_cloud.rotation.x = THREE.Math.degToRad(-90);
+				point_cloud.rotation.z = THREE.Math.degToRad(-180);
+			}
+
+			initial_camera_pose = "y";
+			camera.position.set(0, 0, -500);
+			camera.lookAt(0, 0, 0);
+			console.log(point_cloud);
+		}
+		// User presses "1" and sellects class label 1
+		if (keyCode == 49) {
+			sellected_class_label = -1;
+			menu_params.Labels.not_labeled = true;
+			menu_params.Labels.background = false;
+			menu_params.Labels.car = false;
+			menu_params.Labels.road = false;
+			gui.updateDisplay();
+		}
+		// User presses "2" and sellects class label 2
+		if (keyCode == 50) {
+			sellected_class_label = 0;
+			menu_params.Labels.not_labeled = false;
+			menu_params.Labels.background = true;
+			menu_params.Labels.car = false;
+			menu_params.Labels.road = false;
+			gui.updateDisplay();
+		}
+		// User presses "3" and sellects class label 3
+		if (keyCode == 51) {
+			sellected_class_label = 1;
+			menu_params.Labels.not_labeled = false;
+			menu_params.Labels.background = false;
+			menu_params.Labels.car = true;
+			menu_params.Labels.road = false;
+			gui.updateDisplay();
+		}
+		// User presses "4" and sellects class label 4
+		if (keyCode == 52) {
+			sellected_class_label = 2;
+			menu_params.Labels.not_labeled = false;
+			menu_params.Labels.background = false;
+			menu_params.Labels.car = false;
+			menu_params.Labels.road = true;
+			gui.updateDisplay();
+		}
+
+		// User presses "q" and change visibility of class label 0
+		if (keyCode == 81) {
+			menu_params.Visibility.not_labeled = !menu_params.Visibility.not_labeled;
+			gui.updateDisplay();
+			change_point_visibility();
+		}
+		// User presses "w" and change visibility of class label 0
+		if (keyCode == 87) {
+			menu_params.Visibility.background = !menu_params.Visibility.background;
+			gui.updateDisplay();
+			change_point_visibility();
+		}
+		// User presses "e" and change visibility of class label 1
+		if (keyCode == 69) {
+			menu_params.Visibility.car = !menu_params.Visibility.car;
+			gui.updateDisplay();
+			change_point_visibility();
+		}
+		// User presses "r" and change visibility of class label 2
+		if (keyCode == 82) {
+			menu_params.Visibility.road = !menu_params.Visibility.road;
+			gui.updateDisplay();
+			change_point_visibility();
+		}
+
+		// If user presses "s" final_point_label is set to selected_point_id
+		if (keyCode == 83) {
+			for (let i = 0; i < point_cloud.children.length; i++) {
+			let final_point_color = 0xff0000;
+
+			if (sellected_class_label == -1) {
+				final_point_color = 0xffff00;
+			} else if (sellected_class_label == 0) {
+				final_point_color = 0xff0000;
+			} else if (sellected_class_label == 1) {
+				final_point_color = 0x00ff00;
+			} else if (sellected_class_label == 2) {
+				final_point_color = 0x0000ff;
+			}
+			if (
+				point_cloud.children[i].userData.point_is_selected == 1 &&
+				point_cloud.children[i].visible
+			) {
+				point_cloud.children[
+				i
+				].userData.final_point_label = sellected_class_label;
+				point_cloud.children[i].material.color.set(final_point_color);
+				point_cloud.children[i].material.emissive.set(final_point_color);
+			}
+			}
+			change_point_visibility();
+		}
+
+		// If user presses "-" points with an intensity value <= threshold are "removed"
+		if (keyCode == 189) {
+			if (menu_params.intensity_filter.threshold > intensity_filter_min) {
+				menu_params.intensity_filter.threshold -= 1;
+				console.log(menu_params.intensity_filter.threshold);
+				change_point_visibility();
+				gui.updateDisplay();
+			}
+		}
+
+		// If user presses "+" points with an intensity value <= threshold are "removed"
+		if (keyCode == 187) {
+			if (menu_params.intensity_filter.threshold <= intensity_filter_max) {
+				menu_params.intensity_filter.threshold += 1;
+				console.log(menu_params.intensity_filter.threshold);
+				change_point_visibility();
+				gui.updateDisplay();
+			}
+		}
+		});
+
+		// SAVE button
+		document.getElementById("color").addEventListener("click", function () {
+		for (let i = 0; i < point_cloud.children.length; i++) {
+			if (point_cloud.children[i].userData.final_point_label == -1) {
+				point_cloud_l[i] = 0;
+			} else {
+				point_cloud_l[i] = point_cloud.children[i].userData.final_point_label;
+			}
+		}
+
+		point_cloud_json["l"] = point_cloud_l;
+		upload_point_cloud_to_datalake();
+		});
+
+    </script>
+  </body>
+</html>
