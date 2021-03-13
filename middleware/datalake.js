@@ -14,6 +14,9 @@ s3.getBucketAcl({ Bucket: BUCKET }, function (err, data) {
   }
 });
 
+console.log("Selected S3 Bucket: " + BUCKET);
+console.log('http://localhost:3000/');
+
 var point_cloud_data_json = "";
 
 // This method is triggered if user requests

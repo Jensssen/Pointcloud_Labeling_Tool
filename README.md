@@ -24,4 +24,23 @@ You can find one example point cloud json file under "public/data"
 
 
 # Start the Tool 
-Run "npm start dev" in order to start the Node Express Server 
+Run "npm start dev" in order to start the Node Express Server. 
+
+Open you browser and enter ```localhost:3000```
+
+# Troubleshooting
+After you run the server, you should get a success message in your console.
+```
+Success [
+  {
+    Grantee: {
+      ID: '12334567890',
+      Type: 'CanonicalUser'
+    },
+    Permission: 'FULL_CONTROL'
+  }
+]
+``` 
+If you get a "CredentialsError" you have no Access right to you specified bucket. Do not forget to export your aws credentials. You can create new credentials in the AWS IAM Service. 
+
+Also do not forget to set the correct bucket name inside of "middleware/datalake.js" (by default the bucket is called "pointcloudlabelingtool")
